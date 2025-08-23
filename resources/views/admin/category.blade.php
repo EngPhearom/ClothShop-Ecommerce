@@ -72,7 +72,8 @@
                                                         <i class="icon-edit-3"></i>
                                                     </div>
                                                 </a>
-                                                <form action="{{ route('admin.category.delete', $item->id) }}" method="POST">
+                                                <form action="{{ route('admin.category.delete', $item->id) }}"
+                                                    method="POST">
                                                     @csrf
                                                     <div class="item text-danger delete">
                                                         <i class="icon-trash-2"></i>
@@ -105,12 +106,12 @@
                     title: 'Are you sure?',
                     text: "You want to delete this brand?",
                     icon: 'warning',
-                    button: [
+                    buttons: [
                         'Cancel',
                         'Delete'
                     ],
                     confirmButtonColor: '#3085d6',
-                }).then(function(result) => {
+                }).then(function(result) {
                     if (result) {
                         form.submit();
                     }

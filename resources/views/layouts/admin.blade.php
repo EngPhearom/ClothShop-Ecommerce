@@ -39,8 +39,9 @@
                 <div class="section-menu-left">
                     <div class="box-logo">
                         <a href="{{ route('admin.index') }}" id="site-logo-inner">
-                            <img class="" id="logo_header_1" alt="" src="{{ asset('images/logo/logo.png')}}"
-                                data-light="{{ asset('images/logo/logo.png') }}" data-dark="{{ asset('images/logo/logo.png') }}">
+                            <h3 class="site-logo-inner">ClothShop</h3>
+                            {{-- <img class="" id="logo_header_1" alt="" src="{{ asset('images/logo/logo.png')}}"
+                                data-light="{{ asset('images/logo/logo.png') }}" data-dark="{{ asset('images/logo/logo.png') }}"> --}}
                         </a>
                         <div class="button-show-hide">
                             <i class="icon-menu-left"></i>
@@ -67,12 +68,12 @@
                                     </a>
                                     <ul class="sub-menu">
                                         <li class="sub-menu-item">
-                                            <a href="add-product.html" class="">
+                                            <a href="{{ route('admin.product.add') }}" class="">
                                                 <div class="text">Add Product</div>
                                             </a>
                                         </li>
                                         <li class="sub-menu-item">
-                                            <a href="products.html" class="">
+                                            <a href="{{ route('admin.product') }}" class="">
                                                 <div class="text">Products</div>
                                             </a>
                                         </li>
@@ -183,10 +184,11 @@
                         <div class="wrap">
                             <div class="header-left">
                                 <a href="index-2.html">
-                                    <img class="" id="logo_header_mobile" alt=""
+                                    <h3 class="logo_header_1">ClothShop</h3>
+                                    {{-- <img class="" id="logo_header_mobile" alt=""
                                         src="{{ asset('images/logo/logo.png') }}" data-light="{{ asset('images/logo/logo.png') }}"
                                         data-dark="{{ asset('images/logo/logo.png') }}" data-width="154px" data-height="52px"
-                                        data-retina="{{ asset('images/logo/logo.png') }}">
+                                        data-retina="{{ asset('images/logo/logo.png') }}"> --}}
                                 </a>
                                 <div class="button-show-hide">
                                     <i class="icon-menu-left"></i>
@@ -420,7 +422,7 @@
                                                     <div class="body-title-2">Account</div>
                                                 </a>
                                             </li>
-                                            <li>
+                                            {{-- <li>
                                                 <a href="#" class="user-item">
                                                     <div class="icon">
                                                         <i class="icon-mail"></i>
@@ -444,9 +446,14 @@
                                                     </div>
                                                     <div class="body-title-2">Support</div>
                                                 </a>
-                                            </li>
+                                            </li> --}}
                                             <li>
-                                                <a href="login.html" class="user-item">
+                                                <form action="{{ route('logout') }}" method="POST" id="logout-form"
+                                                    style="display: none;">
+                                                    @csrf
+                                                </form>
+                                                <a href="#" class="user-item"
+                                                    onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
                                                     <div class="icon">
                                                         <i class="icon-log-out"></i>
                                                     </div>

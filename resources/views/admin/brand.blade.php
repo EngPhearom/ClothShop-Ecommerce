@@ -99,19 +99,18 @@
     <script>
         $(function() {
             $('.delete').on('click', function(e) {
-                // alert('Are you sure you want to delete this brand?');
                 e.preventDefault();
                 var form = $(this).closest('form');
                 swal({
                     title: 'Are you sure?',
                     text: "You want to delete this brand?",
                     icon: 'warning',
-                    button: [
-                        'No',
-                        'Yes'
+                    buttons: [
+                        'Cancel',
+                        'Delete'
                     ],
                     confirmButtonColor: '#3085d6',
-                }).then(function(result) => {
+                }).then(function(result) {
                     if (result) {
                         form.submit();
                     }
