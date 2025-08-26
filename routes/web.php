@@ -36,6 +36,8 @@ Route::get('/order-confirmation', [CartController::class, 'order_confirmation'])
 Route::get('/contact-us', [HomeController::class, 'contact'])->name('home.contact');
 Route::post('/contact-us/store', [HomeController::class, 'contact_store'])->name('home.contact.store');
 
+Route::get('/about-us', [HomeController::class, 'about'])->name('home.about');
+
 Route::get('/search', [HomeController::class, 'search'])->name('home.search');
 
 Route::middleware(['auth'])->group(function () {
