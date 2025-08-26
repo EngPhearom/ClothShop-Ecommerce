@@ -23,7 +23,6 @@
                     <div class="register-form">
                         <form method="POST" action="{{ route('register') }}" name="register-form" class="needs-validation" novalidate="">
                             @csrf
-
                             <div class="form-floating mb-3">
                                 <input class="form-control form-control_gray @error('name') is-invalid @enderror"
                                        id="name" name="name" value="{{ old('name') }}" required="" autocomplete="name" autofocus="">

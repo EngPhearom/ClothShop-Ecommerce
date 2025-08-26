@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Brand;
 use App\Models\Category;
+use App\Models\Contact;
 use App\Models\Coupon;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -12,6 +13,7 @@ use App\Models\Slide;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Intervention\Image\Laravel\Facades\Image;
@@ -21,7 +23,40 @@ class AdminController extends Controller
     //
     public function index()
     {
-        return view('admin.index');
+        $orders = Order::orderBy('created_at', 'DESC')->get()->take(10);
+        $dashboardDatas = DB::select("SELECT SUM(total) AS TotalAmount,
+                                    SUM(IF(`status` = 'ordered', total, 0)) AS TotalOrderedAmount,
+                                    SUM(IF(`status` = 'delivered', total, 0)) AS TotalDeliveredAmount,
+                                    SUM(IF(`status` = 'canceled',total,0)) AS TotalCanceledAmount,
+                                    COUNT(*) AS Total,
+                                    SUM(IF(`status` = 'ordered', 1, 0)) AS TotalOrdered,
+                                    SUM(IF(`status` = 'delivered', 1, 0)) AS TotalDelivered,
+                                    SUM(IF(`status` = 'canceled',1,0)) AS TotalCanceled
+                                    FROM orders");
+        $monthlyDatas = DB::select("SELECT M.id AS MonthNo, M.name AS MonthName,
+                                    IFNULL(D.TotalAmount,0) AS TotalAmount,
+                                    IFNULL(D.TotalOrderedAmount,0) AS TotalOrderedAmount,
+                                    IFNULL(D.TotalDeliveredAmount,0) AS TotalDeliveredAmount,
+                                    IFNULL(D.TotalCanceledAmount,0) AS TotalCanceledAmount FROM month_names AS M
+                                    LEFT JOIN (SELECT DATE_FORMAT(created_at,'%b') AS MonthName,
+                                    MONTH(created_at) AS MonthNo,
+                                    SUM(total) AS TotalAmount,
+                                    SUM(IF(`status` = 'ordered', total, 0)) AS TotalOrderedAmount,
+                                    SUM(IF(`status` = 'delivered', total, 0)) AS TotalDeliveredAmount,
+                                    SUM(IF(`status` = 'canceled',total,0)) AS TotalCanceledAmount
+                                    FROM orders WHERE YEAR(created_at) = YEAR(NOW()) GROUP BY YEAR(created_at), MONTH(created_at), DATE_FORMAT(created_at,'%b')
+                                    ORDER BY MONTH(created_at)) AS D ON D.MonthNo = M.id");
+        $Amount = implode(',', collect($monthlyDatas)->pluck('TotalAmount')->toArray());
+        $OrderedAmount = implode(',', collect($monthlyDatas)->pluck('OrderedAmount')->toArray());
+        $DeliveredAmount = implode(',', collect($monthlyDatas)->pluck('DeliveredAmount')->toArray());
+        $CanceledAmount = implode(',', collect($monthlyDatas)->pluck('CanceledAmount')->toArray());
+
+        $TotalAmount = collect($monthlyDatas)->sum('TotalAmount');
+        $TotalOrderedAmount = collect($monthlyDatas)->sum('TotalOrderedAmount');
+        $TotalDeliveredAmount = collect($monthlyDatas)->sum('TotalDeliveredAmount');
+        $TotalCanceledAmount = collect($monthlyDatas)->sum('TotalCanceledAmount');
+
+        return view('admin.index', compact('orders', 'dashboardDatas', 'Amount', 'OrderedAmount', 'DeliveredAmount', 'CanceledAmount', 'TotalAmount', 'TotalOrderedAmount', 'TotalDeliveredAmount', 'TotalCanceledAmount'));
     }
 
     public function brand()
@@ -540,5 +575,71 @@ class AdminController extends Controller
         $img->resize(400, 690, function ($constraint) {
             $constraint->aspectRatio();
         })->save($destinationPath . '/' . $imageName);
+    }
+
+    public function slide_edit($id)
+    {
+        $slides = Slide::find($id);
+        return view('admin.slide-edit', compact('slides'));
+    }
+
+    public function slide_update(Request $request)
+    {
+        $request->validate([
+            'tagline' => 'required',
+            'title' => 'required',
+            'subtitle' => 'required',
+            'link' => 'required',
+            'status' => 'required',
+            'image' => 'required|mimes:png,jpg,jpeg,gif,svg|max:2048',
+        ]);
+
+        $slides = Slide::find($request->id);
+        $slides->tagline = $request->tagline;
+        $slides->title = $request->title;
+        $slides->subtitle = $request->subtitle;
+        $slides->link = $request->link;
+        $slides->status = $request->status;
+
+        if ($request->hasFile('image')) {
+            if (File::exists((public_path('uploads/slides') . '/' . $slides->image))) {
+                Slide::deleted((public_path('uploads/slides') . '/' . $slides->image));
+            }
+            $image = $request->file('image');
+            $file_extention = $request->file('image')->extension();
+            $file_name = Carbon::now()->timestamp . '.' . $file_extention;
+            $this->GenerateSlideThumbailsImage($image, $file_name);
+            $slides->image = $file_name;
+        }
+        $slides->save();
+        return redirect()->route('admin.slide')->with('status', 'Slide updated successfully');
+    }
+
+    public function slide_delete($id)
+    {
+        $slides = Slide::find($id);
+        if (File::exists((public_path('uploads/slides') . '/' . $slides->image))) {
+            Slide::deleted((public_path('uploads/slides') . '/' . $slides->image));
+        }
+        $slides->delete();
+        return redirect()->route('admin.slide')->with('status', 'Slide delteed successfully');
+    }
+
+    public function contact(){
+        $contacts = Contact::orderBy('created_at', 'DESC')->paginate(10);
+        return view('admin.contact', compact('contacts'));
+    }
+
+    public function contact_delete($id){
+        $contact = Contact::find($id);
+        $contact->delete();
+        return redirect()->route('admin.contact')->with('status', 'Contact deleted successfully');
+    }
+
+    public function search(Request $request)
+    {
+        $query = $request->input('query');
+        $results = Product::where('name', 'LIKE', "%{$query}%")->get()->take(8);
+        return response()->json($results);
     }
 }
