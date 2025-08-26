@@ -3,7 +3,7 @@
     <div class="main-content-inner">
         <div class="main-content-wrap">
             <div class="flex items-center flex-wrap justify-between gap20 mb-27">
-                <h3>Categories</h3>
+                <h3>Coupons</h3>
                 <ul class="breadcrumbs flex items-center flex-wrap justify-start gap10">
                     <li>
                         <a href="{{ route('admin.index') }}">
@@ -14,7 +14,7 @@
                         <i class="icon-chevron-right"></i>
                     </li>
                     <li>
-                        <div class="text-tiny">Categories</div>
+                        <div class="text-tiny">Coupons</div>
                     </li>
                 </ul>
             </div>
@@ -32,7 +32,7 @@
                             </div>
                         </form>
                     </div>
-                    <a class="tf-button style-1 w208" href="{{ route('admin.category.add') }}"><i class="icon-plus"></i>Add
+                    <a class="tf-button style-1 w208" href="{{ route('admin.coupon.add') }}"><i class="icon-plus"></i>Add
                         new</a>
                 </div>
                 <div class="wg-table table-all-user">
@@ -44,35 +44,31 @@
                             <thead>
                                 <tr>
                                     <th>#</th>
-                                    <th>Name</th>
-                                    <th>Slug</th>
-                                    <th>Products</th>
+                                    <th>Code</th>
+                                    <th>Type</th>
+                                    <th>Value</th>
+                                    <th>Cart Value</th>
+                                    <th>Expiry Date</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach ($categories as $item)
+                                @foreach ($coupons as $coupon)
                                     <tr>
-                                        <td>{{ $item->id }}</td>
-                                        <td class="pname">
-                                            <div class="image">
-                                                <img src="{{ asset('uploads/categories') }}/{{ $item->image }}"
-                                                    alt="{{ $item->name }}" class="image">
-                                            </div>
-                                            <div class="name">
-                                                <a href="#" class="body-title-2">{{ $item->name }}</a>
-                                            </div>
-                                        </td>
-                                        <td>{{ $item->slug }}</td>
-                                        <td><a href="#" target="_blank">1</a></td>
+                                        <td>{{ $coupon->id }}</td>
+                                        <td>{{ $coupon->code }}</td>
+                                        <td>{{ $coupon->type }}</td>
+                                        <td>{{ $coupon->value }}</td>
+                                        <td>${{ $coupon->cart_value }}</td>
+                                        <td>{{ $coupon->expiry_date }}</td>
                                         <td>
                                             <div class="list-icon-function">
-                                                <a href="{{ route('admin.category.edit', $item->id) }}" class="item">
+                                                <a href="{{ route('admin.coupon.edit', $coupon->id) }}">
                                                     <div class="item edit">
                                                         <i class="icon-edit-3"></i>
                                                     </div>
                                                 </a>
-                                                <form action="{{ route('admin.category.delete', $item->id) }}"
+                                                <form action="{{ route('admin.coupon.delete', $coupon->id) }}"
                                                     method="POST">
                                                     @csrf
                                                     <div class="item text-danger delete">
@@ -86,10 +82,10 @@
                             </tbody>
                         </table>
                     </div>
-                    <div class="divider"></div>
-                    <div class="flex items-center justify-between flex-wrap gap10 wgp-pagination">
+                </div>
+                <div class="divider"></div>
+                <div class="flex items-center justify-between flex-wrap gap10 wgp-pagination">
 
-                    </div>
                 </div>
             </div>
         </div>
@@ -104,7 +100,7 @@
                 var form = $(this).closest('form');
                 swal({
                     title: 'Are you sure?',
-                    text: "You want to delete this category?",
+                    text: "You want to delete this coupon?",
                     icon: 'warning',
                     buttons: [
                         'Cancel',

@@ -40,8 +40,6 @@
                     <div class="box-logo">
                         <a href="{{ route('admin.index') }}" id="site-logo-inner">
                             <h3 class="site-logo-inner">ClothShop</h3>
-                            {{-- <img class="" id="logo_header_1" alt="" src="{{ asset('images/logo/logo.png')}}"
-                                data-light="{{ asset('images/logo/logo.png') }}" data-dark="{{ asset('images/logo/logo.png') }}"> --}}
                         </a>
                         <div class="button-show-hide">
                             <i class="icon-menu-left"></i>
@@ -123,7 +121,7 @@
                                     </a>
                                     <ul class="sub-menu">
                                         <li class="sub-menu-item">
-                                            <a href="orders.html" class="">
+                                            <a href="{{ route('admin.orders') }}" class="">
                                                 <div class="text">Orders</div>
                                             </a>
                                         </li>
@@ -135,13 +133,13 @@
                                     </ul>
                                 </li>
                                 <li class="menu-item">
-                                    <a href="slider.html" class="">
+                                    <a href="{{ route('admin.slide') }}" class="">
                                         <div class="icon"><i class="icon-image"></i></div>
                                         <div class="text">Slider</div>
                                     </a>
                                 </li>
                                 <li class="menu-item">
-                                    <a href="coupons.html" class="">
+                                    <a href="{{ route('admin.coupon') }}" class="">
                                         <div class="icon"><i class="icon-grid"></i></div>
                                         <div class="text">Coupons</div>
                                     </a>
@@ -185,10 +183,6 @@
                             <div class="header-left">
                                 <a href="index-2.html">
                                     <h3 class="logo_header_1">ClothShop</h3>
-                                    {{-- <img class="" id="logo_header_mobile" alt=""
-                                        src="{{ asset('images/logo/logo.png') }}" data-light="{{ asset('images/logo/logo.png') }}"
-                                        data-dark="{{ asset('images/logo/logo.png') }}" data-width="154px" data-height="52px"
-                                        data-retina="{{ asset('images/logo/logo.png') }}"> --}}
                                 </a>
                                 <div class="button-show-hide">
                                     <i class="icon-menu-left"></i>
@@ -395,19 +389,16 @@
                                     </div>
                                 </div>
 
-
-
-
                                 <div class="popup-wrap user type-header">
                                     <div class="dropdown">
                                         <button class="btn btn-secondary dropdown-toggle" type="button"
                                             id="dropdownMenuButton3" data-bs-toggle="dropdown" aria-expanded="false">
                                             <span class="header-user wg-user">
                                                 <span class="image">
-                                                    <img src="images/avatar/user-1.png" alt="">
+                                                    <img src="#" alt="">
                                                 </span>
                                                 <span class="flex flex-column">
-                                                    <span class="body-title mb-2">Kristin Watson</span>
+                                                    <span class="body-title mb-2">Eng Phirom</span>
                                                     <span class="text-tiny">Admin</span>
                                                 </span>
                                             </span>
@@ -471,7 +462,7 @@
                         @yield('content')
 
                         <div class="bottom-page">
-                            <div class="body-text">Copyright © 2024 SurfsideMedia</div>
+                            <div class="body-text">Copyright © 2025 engphirom</div>
                         </div>
                     </div>
 

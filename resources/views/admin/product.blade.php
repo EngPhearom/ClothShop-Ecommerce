@@ -120,7 +120,7 @@
                 var form = $(this).closest('form');
                 swal({
                     title: 'Are you sure?',
-                    text: "You want to delete this brand?",
+                    text: "You want to delete this product?",
                     icon: 'warning',
                     buttons: [
                         'Cancel',

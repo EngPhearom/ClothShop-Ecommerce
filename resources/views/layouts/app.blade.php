@@ -19,6 +19,7 @@
     <link href="{{ asset('https://fonts.googleapis.com/css2?family=Allura&amp;display=swap') }}" rel="stylesheet">
     <link rel="stylesheet" href="{{ asset('assets/css/plugins/swiper.min.css') }}" type="text/css" />
     <link rel="stylesheet" href="{{ asset('assets/css/style.css') }}" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="{{ asset('css/sweetalert.min.css') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/custom.css') }}" type="text/css" />
     <link rel="stylesheet"
         href="{{ asset('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css') }}"
@@ -276,7 +277,6 @@
             <div class="logo">
                 <a href="{{ route('home.index') }}">
                     <h3 class="logo__image">ClothShop</h3>
-                    {{-- <img src="{{ asset('assets/images/logo.png') }}" alt="Uomo" class="logo__image d-block" /> --}}
                 </a>
             </div>
 
@@ -398,7 +398,6 @@
                 <div class="logo">
                     <a href="{{ route('home.index') }}">
                         <h3 class="logo__image">ClothShop</h3>
-                        {{-- <img src="{{ asset('assets/images/logo.png') }}" alt="Uomo" class="logo__image d-block" /> --}}
                     </a>
                 </div>
 
@@ -495,11 +494,15 @@
                         </div>
                     @endguest
 
-                    <a href="wishlist.html" class="header-tools__item">
+                    <a href="{{ route('wishlist.index') }}" class="header-tools__item header-tools__cart">
                         <svg width="20" height="20" viewBox="0 0 20 20" fill="none"
                             xmlns="http://www.w3.org/2000/svg">
                             <use href="#icon_heart" />
                         </svg>
+                        @if (Cart::instance('wishlist')->content()->count() > 0)
+                            <span
+                                class="cart-amount d-block position-absolute js-cart-items-count">{{ Cart::instance('wishlist')->content()->count() }}</span>
+                        @endif
                     </a>
 
                     <a href="{{ route('cart.index') }}" class="header-tools__item header-tools__cart">
@@ -508,7 +511,8 @@
                             <use href="#icon_cart" />
                         </svg>
                         @if (Cart::instance('cart')->content()->count() > 0)
-                            <span class="cart-amount d-block position-absolute js-cart-items-count">{{ Cart::instance('cart')->content()->count() }}</span>
+                            <span
+                                class="cart-amount d-block position-absolute js-cart-items-count">{{ Cart::instance('cart')->content()->count() }}</span>
                         @endif
                     </a>
                 </div>
@@ -527,12 +531,11 @@
                     <div class="logo">
                         <a href="{{ route('home.index') }}">
                             <h3 class="logo__image">ClothShop</h3>
-                            {{-- <img src="{{ asset('assets/images/logo.png') }}" alt="SurfsideMedia" class="logo__image d-block" /> --}}
                         </a>
                     </div>
-                    <p class="footer-address">123 Beach Avenue, Surfside City, CA 00000</p>
-                    <p class="m-0"><strong class="fw-medium">contact@surfsidemedia.in</strong></p>
-                    <p><strong class="fw-medium">+1 000-000-0000</strong></p>
+                    <p class="footer-address">St 261, Terk l'ork Ti2, Turl Kork, Phnom Penh</p>
+                    <p class="m-0"><strong class="fw-medium">engphearom55@gmail.com</strong></p>
+                    <p><strong class="fw-medium">+884 85 394 984</strong></p>
 
                     <ul class="social-links list-unstyled d-flex flex-wrap mb-0">
                         <li>
@@ -646,17 +649,6 @@
                 </div>
             </div>
         </div>
-
-        <div class="footer-bottom">
-            <div class="container d-md-flex align-items-center">
-                <span class="footer-copyright me-auto">©2024 Surfside Media</span>
-                <div class="footer-settings d-md-flex align-items-center">
-                    <a href="privacy-policy.html">Privacy Policy</a> &nbsp;|&nbsp; <a
-                        href="terms-conditions.html">Terms &amp;
-                        Conditions</a>
-                </div>
-            </div>
-        </div>
     </footer>
 
 
@@ -707,6 +699,7 @@
     <script src="{{ asset('assets/js/plugins/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ asset('assets/js/plugins/bootstrap-slider.min.js') }}"></script>
     <script src="{{ asset('assets/js/plugins/swiper.min.js') }}"></script>
+    <script src="{{ asset('js/sweetalert.min.js') }}"></script>
     <script src="{{ asset('assets/js/plugins/countdown.js') }}"></script>
     <script src="{{ asset('assets/js/theme.js') }}"></script>
     @stack('scripts')
