@@ -242,7 +242,7 @@ class AdminController extends Controller
     {
         $request->validate([
             'name' => 'required',
-            'slug' => 'required|unique:products,slug',
+            'slug' => 'unique:products,slug',
             'short_description' => 'required',
             'description' => 'required',
             'regular_price' => 'required',
@@ -625,12 +625,14 @@ class AdminController extends Controller
         return redirect()->route('admin.slide')->with('status', 'Slide delteed successfully');
     }
 
-    public function contact(){
+    public function contact()
+    {
         $contacts = Contact::orderBy('created_at', 'DESC')->paginate(10);
         return view('admin.contact', compact('contacts'));
     }
 
-    public function contact_delete($id){
+    public function contact_delete($id)
+    {
         $contact = Contact::find($id);
         $contact->delete();
         return redirect()->route('admin.contact')->with('status', 'Contact deleted successfully');

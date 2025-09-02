@@ -52,10 +52,11 @@
                         <div class="body-title">Upload images <span class="tf-color-1">*</span>
                         </div>
                         <div class="upload-image flex-grow">
-                            @if($brands->image)
-                            <div class="item" id="imgpreview">
-                                <img src="{{ asset('uploads/brands') }}/{{ $brands->image }}" class="effect8" alt="">
-                            </div>
+                            @if ($brands->image)
+                                <div class="item" id="imgpreview">
+                                    <img src="{{ asset('uploads/brands') }}/{{ $brands->image }}" class="effect8"
+                                        alt="">
+                                </div>
                             @endif
                             <div id="upload-file" class="item up-load">
                                 <label class="uploadfile" for="myFile">
@@ -74,7 +75,7 @@
                     @enderror
                     <div class="bot">
                         <div></div>
-                        <button class="tf-button w208" type="submit">Save</button>
+                        <button class="tf-button w208" type="submit">Update Brand</button>
                     </div>
                 </form>
             </div>
