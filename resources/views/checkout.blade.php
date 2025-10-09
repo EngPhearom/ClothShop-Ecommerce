@@ -235,9 +235,9 @@
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input form-check-input_fill" type="radio" name="mode"
-                                        id="mode2" value="paypal">
+                                        id="mode2" value="qr">
                                     <label class="form-check-label" for="mode2">
-                                        Paypal
+                                        QR
                                     </label>
                                 </div>
                                 <div class="form-check">

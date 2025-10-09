@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Facades\Http;
 use App\Models\Address;
 use App\Models\Coupon;
 use App\Models\Order;
@@ -10,6 +11,7 @@ use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 use Surfsidemedia\Shoppingcart\Facades\Cart;
 
@@ -182,7 +184,7 @@ class CartController extends Controller
         }
 
         if ($request->mode == 'card') {
-        } elseif ($request->mode == 'paypal') {
+        } elseif ($request->mode == 'qr') {
         } elseif ($request->mode == 'cod') {
             $transaction = new Transaction();
             $transaction->user_id = $user_id;
@@ -190,6 +192,8 @@ class CartController extends Controller
             $transaction->mode = $request->mode;
             $transaction->status = 'pending';
             $transaction->save();
+
+            $this->sendTelegramNotification($order, $address);
         }
 
         Cart::instance('cart')->destroy();
@@ -198,6 +202,57 @@ class CartController extends Controller
         Session::forget('discount');
         Session::put('order_id', $order->id);
         return redirect()->route('cart.order.confirmation', compact('order'));
+    }
+
+    private function sendTelegramNotification($order, $address)
+    {
+        $orderItem = "";
+        foreach ($order->orderItem as $item) {
+            $orderItem .= "• {$item->product->name} x {$item->quantity} - \${$item->price}\n";
+        }
+
+        $customer_info = "📦 <b>Order #" . $order->id . "</b>\n\n";
+        $customer_info .= "👤 <b>Customer Details:</b>\n";
+        $customer_info .= "Name: <b>{$address->name}</b>\n";
+        $customer_info .= "Phone: <b>{$address->phone}</b>\n";
+        $customer_info .= "Email: <b>" . Auth::user()->email . "</b>\n\n";
+
+        $customer_info .= "📍 <b>Shipping Address:</b>\n";
+        $customer_info .= "<b>{$address->address}</b>\n";
+        $customer_info .= "{$address->locality}, {$address->landmark}\n";
+        $customer_info .= "{$address->city}, {$address->state}\n";
+        $customer_info .= "{$address->country} - {$address->zip}\n\n";
+
+        $customer_info .= "🛍️ <b>Order Items:</b>\n";
+        $customer_info .= $orderItem . "\n";
+
+        $customer_info .= "💰 <b>Order Summary:</b>\n";
+        $customer_info .= "Subtotal: \${$order->subtotal}\n";
+        $customer_info .= "Discount: \${$order->discount}\n";
+        $customer_info .= "Tax: \${$order->tax}\n";
+        $customer_info .= "Total: <b>\${$order->total}</b>\n\n";
+
+        $customer_info .= "💳 <b>Payment Method:</b> Cash on Delivery\n";
+        $customer_info .= "📅 <b>Order Date:</b> " . $order->created_at->format('d M Y, h:i A');
+
+        $token = "7798227033:AAEdag1xP4p3JvDbdOgdPdavhxd6EPFabIg";
+
+        try {
+            $response = Http::withHeaders([
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+            ])->post("https://api.telegram.org/bot{$token}/sendMessage", [
+                "text" => "🔔 <b>New Order</b>\n\n" . $customer_info,
+                "parse_mode" => "HTML",
+                "disable_web_page_preview" => false,
+                "disable_notification" => false,
+                "chat_id" => "@rom_notification"
+            ]);
+
+            Log::info('Telegram notification sent', ['response' => $response->json()]);
+        } catch (\Exception $e) {
+            Log::error('Failed to send Telegram notification: ' . $e->getMessage());
+        }
     }
 
     public function setAmountforCheckout()
