@@ -27,7 +27,7 @@
                     </span>
                 </a>
             </div>
-            <form name="checkout-form" action="{{ route('cart.place.order') }}" method="POST">
+            <form name="checkout-form" action="{{ route('cart.place.order') }}" method="POST" id="checkout-form">
                 @csrf
                 <div class="checkout-form">
                     <div class="billing-info__wrapper">
@@ -82,8 +82,7 @@
                                     <div class="form-floating my-3">
                                         <input type="text" class="form-control" name="zip" required=""
                                             value="{{ old('zip') }}">
-                                        <label for="zip">Pincode
-                                            *</label>
+                                        <label for="zip">Pincode *</label>
                                         @error('zip')
                                             <span class="text-danger">{{ $message }}</span>
                                         @enderror
@@ -93,8 +92,7 @@
                                     <div class="form-floating mt-3 mb-3">
                                         <input type="text" class="form-control" name="state" required=""
                                             value="{{ old('state') }}">
-                                        <label for="state">State
-                                            *</label>
+                                        <label for="state">State *</label>
                                         @error('state')
                                             <span class="text-danger">{{ $message }}</span>
                                         @enderror
@@ -104,8 +102,7 @@
                                     <div class="form-floating my-3">
                                         <input type="text" class="form-control" name="city" required=""
                                             value="{{ old('city') }}">
-                                        <label for="city">Town
-                                            / City *</label>
+                                        <label for="city">Town / City *</label>
                                         @error('city')
                                             <span class="text-danger">{{ $message }}</span>
                                         @enderror
@@ -115,8 +112,7 @@
                                     <div class="form-floating my-3">
                                         <input type="text" class="form-control" name="address" required=""
                                             value="{{ old('address') }}">
-                                        <label for="address">House
-                                            no, Building Name *</label>
+                                        <label for="address">House no, Building Name *</label>
                                         @error('address')
                                             <span class="text-danger">{{ $message }}</span>
                                         @enderror
@@ -126,8 +122,7 @@
                                     <div class="form-floating my-3">
                                         <input type="text" class="form-control" name="locality" required=""
                                             value="{{ old('locality') }}">
-                                        <label for="locality">Road
-                                            Name, Area, Colony *</label>
+                                        <label for="locality">Road Name, Area, Colony *</label>
                                         @error('locality')
                                             <span class="text-danger">{{ $message }}</span>
                                         @enderror
@@ -137,8 +132,7 @@
                                     <div class="form-floating my-3">
                                         <input type="text" class="form-control" name="landmark" required=""
                                             value="{{ old('landmark') }}">
-                                        <label for="landmark">Landmark
-                                            *</label>
+                                        <label for="landmark">Landmark *</label>
                                         @error('landmark')
                                             <span class="text-danger">{{ $message }}</span>
                                         @enderror
@@ -188,9 +182,7 @@
                                             </tr>
                                             <tr>
                                                 <th>Shipping</th>
-                                                <td class="text-right">
-                                                    Free
-                                                </td>
+                                                <td class="text-right">Free</td>
                                             </tr>
                                             <tr>
                                                 <th>VAT</th>
@@ -235,31 +227,106 @@
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input form-check-input_fill" type="radio" name="mode"
-                                        id="mode2" value="qr">
+                                        id="mode2" value="khqr">
                                     <label class="form-check-label" for="mode2">
-                                        QR
+                                        KHQR
                                     </label>
                                 </div>
                                 <div class="form-check">
                                     <input class="form-check-input form-check-input_fill" type="radio" name="mode"
-                                        id="mode3" value="cod">
+                                        id="mode3" value="cod" checked>
                                     <label class="form-check-label" for="mode3">
                                         Cash on delivery
                                     </label>
                                 </div>
                                 <div class="policy-text">
                                     Your personal data will be used to process your order, support your experience
-                                    throughout this
-                                    website, and for other purposes described in our <a href="terms.html"
-                                        target="_blank">privacy
-                                        policy</a>.
+                                    throughout this website, and for other purposes described in our <a href="terms.html"
+                                        target="_blank">privacy policy</a>.
                                 </div>
                             </div>
-                            <button class="btn btn-primary btn-checkout">PLACE ORDER</button>
+                            <button type="submit" class="btn btn-primary btn-checkout">PLACE ORDER</button>
                         </div>
                     </div>
                 </div>
             </form>
         </section>
+
+        <!-- KHQR Modal -->
+        <div class="modal fade" id="khqrModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
+            aria-labelledby="khqrModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="khqrModalLabel">Scan KHQR to Pay</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <div id="qrcode-container" class="mb-3">
+                            <canvas id="qrcode"></canvas>
+                        </div>
+                        <div class="alert alert-info">
+                            <strong>Scan this QR code</strong> with your banking app to complete payment
+                        </div>
+                        <div id="payment-status" class="mt-3">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Checking payment...</span>
+                            </div>
+                            <p class="mt-2">Waiting for payment confirmation...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
 @endsection
+
+@push('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            @if (session('show_khqr_modal') && session('khqr_data'))
+                const khqrData = @json(session('khqr_data'));
+                const md5 = '{{ session('khqr_md5') }}';
+                const canvas = document.getElementById('qrcode');
+
+                QRCode.toCanvas(canvas, khqrData.qr_string, {
+                    width: 300
+                }, function(error) {
+                    if (error) console.error(error);
+                });
+
+                const modal = new bootstrap.Modal(document.getElementById('khqrModal'));
+                modal.show();
+
+                let checkInterval = setInterval(() => {
+                    fetch('{{ route('cart.check.khqr.payment') }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                            },
+                            body: JSON.stringify({
+                                md5
+                            })
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.success) {
+                                clearInterval(checkInterval);
+                                document.getElementById('payment-status').innerHTML = `
+                        <div class="alert alert-success">
+                            <strong>✅ Payment Successful!</strong><br>Redirecting...
+                        </div>`;
+                                setTimeout(() => window.location.href = data.redirect, 2000);
+                            }
+                        })
+                        .catch(err => console.error('Error checking KHQR:', err));
+                }, 5000);
+
+                document.getElementById('khqrModal').addEventListener('hidden.bs.modal', () => clearInterval(
+                    checkInterval));
+            @endif
+        });
+    </script>
+@endpush

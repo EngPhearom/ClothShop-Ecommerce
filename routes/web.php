@@ -32,6 +32,7 @@ Route::post('/wishlist/move-to-cart/{rowId}', [WishlistController::class, 'move_
 Route::get('/checkout', [CartController::class, 'checkout'])->name('cart.checkout');
 Route::post('/place-an-order', [CartController::class, 'place_an_order'])->name('cart.place.order');
 Route::get('/order-confirmation', [CartController::class, 'order_confirmation'])->name('cart.order.confirmation');
+Route::post('/cart/check-khqr-payment', [CartController::class, 'checkKHQRPaymentStatus'])->name('cart.check.khqr.payment');
 
 Route::get('/contact-us', [HomeController::class, 'contact'])->name('home.contact');
 Route::post('/contact-us/store', [HomeController::class, 'contact_store'])->name('home.contact.store');

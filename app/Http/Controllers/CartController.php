@@ -14,10 +14,12 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 use Surfsidemedia\Shoppingcart\Facades\Cart;
+use KHQR\BakongKHQR;
+use KHQR\Helpers\KHQRData;
+use KHQR\Models\IndividualInfo;
 
 class CartController extends Controller
 {
-    //
     public function index()
     {
         $item = Cart::instance('cart')->content();
@@ -184,7 +186,21 @@ class CartController extends Controller
         }
 
         if ($request->mode == 'card') {
-        } elseif ($request->mode == 'qr') {
+        } elseif ($request->mode == 'khqr') {
+            $khqrData = $this->generateKHQR($order);
+
+            $transaction = new Transaction();
+            $transaction->user_id = $user_id;
+            $transaction->order_id = $order->id;
+            $transaction->mode = $request->mode;
+            $transaction->status = 'pending';
+            $transaction->save();
+
+            Session::put('khqr_data', $khqrData);
+            Session::put('khqr_order_id', $order->id);
+            Session::put('khqr_md5', $khqrData['md5']);
+
+            return redirect()->route('cart.checkout')->with('show_khqr_modal', true);
         } elseif ($request->mode == 'cod') {
             $transaction = new Transaction();
             $transaction->user_id = $user_id;
@@ -194,17 +210,157 @@ class CartController extends Controller
             $transaction->save();
 
             $this->sendTelegramNotification($order, $address);
-        }
 
-        Cart::instance('cart')->destroy();
-        Session::forget('checkout');
-        Session::forget('coupon');
-        Session::forget('discount');
-        Session::put('order_id', $order->id);
-        return redirect()->route('cart.order.confirmation', compact('order'));
+            Cart::instance('cart')->destroy();
+            Session::forget('checkout');
+            Session::forget('coupon');
+            Session::forget('discount');
+            Session::put('order_id', $order->id);
+            return redirect()->route('cart.order.confirmation');
+        }
     }
 
-    private function sendTelegramNotification($order, $address)
+    public function generateKHQR($order)
+    {
+        try {
+            // Convert USD to KHR (approximate rate: 1 USD = 4100 KHR)
+            $amountInKHR = floatval(str_replace(',', '', $order->total)) * 4100;
+
+            $individualInfo = new IndividualInfo(
+                bakongAccountID: 'eng_phirom@aclb',
+                merchantName: 'Eng Phirom',
+                merchantCity: 'PHNOM PENH',
+                currency: KHQRData::CURRENCY_KHR,
+                amount: $amountInKHR
+            );
+
+            // Generate KHQR without API (offline generation)
+            $khqrString = BakongKHQR::generateIndividual($individualInfo);
+
+            // Log everything for debugging
+            Log::info('KHQR Generation:', [
+                'type' => gettype($khqrString),
+                'length' => is_string($khqrString) ? strlen($khqrString) : 'not string',
+                'value' => $khqrString,
+                'amount' => $amountInKHR
+            ]);
+
+            // KHQR library returns the QR string directly
+            $qrCodeData = is_string($khqrString) ? $khqrString : '';
+
+            if (empty($qrCodeData)) {
+                Log::error('Empty QR code data generated');
+                // Use a test QR code for debugging
+                $qrCodeData = "00020101021229190015eng_phirom@aclb52045999530311654031005802KH5910Eng Phirom6010PHNOM PENH9917001317602445102106304BF70";
+            }
+
+            return [
+                'qr_string' => $qrCodeData,
+                'md5' => md5($qrCodeData),
+                'amount' => $amountInKHR
+            ];
+        } catch (\Exception $e) {
+            Log::error('KHQR Generation Failed: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            // Return test data for debugging
+            $testQR = "00020101021229190015eng_phirom@aclb52045999530311654031005802KH5910Eng Phirom6010PHNOM PENH9917001317602445102106304BF70";
+
+            return [
+                'qr_string' => $testQR,
+                'md5' => md5($testQR),
+                'amount' => 0
+            ];
+        }
+    }
+
+
+    public function checkKHQRPaymentStatus(Request $request)
+    {
+        $md5 = $request->input('md5');
+
+        try {
+            $token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlkIjoiMjIwMWU1MzM1YzI5NGU4NSJ9LCJpYXQiOjE3NjAxNTU5MzYsImV4cCI6MTc2NzkzMTkzNn0.zrC8oOpgB0T8HR9pwSPdT3_DNer1uI_GRD2hpVPoTPE';
+            $bakongKhqr = new BakongKHQR($token);
+            $response = $bakongKhqr->checkTransactionByMD5($md5);
+
+            Log::info('KHQR Payment Check Response:', [
+                'type' => gettype($response),
+                'response' => $response
+            ]);
+
+            $isSuccess = false;
+
+            if (is_object($response)) {
+                $isSuccess = (
+                    (isset($response->responseCode) && $response->responseCode === 0) ||
+                    (isset($response->response_code) && $response->response_code === 0) ||
+                    (isset($response->status) && $response->status === 'success') ||
+                    (isset($response->data) && !empty($response->data))
+                );
+            } elseif (is_array($response)) {
+                $isSuccess = (
+                    (isset($response['responseCode']) && $response['responseCode'] === 0) ||
+                    (isset($response['response_code']) && $response['response_code'] === 0) ||
+                    (isset($response['status']) && $response['status'] === 'success') ||
+                    (isset($response['data']) && !empty($response['data']))
+                );
+            }
+
+            if ($isSuccess) {
+                $orderId = Session::get('khqr_order_id');
+                $order = Order::find($orderId);
+
+                if (!$order) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Order not found'
+                    ]);
+                }
+
+                $address = Address::where('user_id', $order->user_id)->where('isdefault', true)->first();
+
+                $transaction = Transaction::where('order_id', $orderId)->first();
+                if ($transaction) {
+                    $transaction->status = 'approved';
+                    $transaction->save();
+                }
+
+                $this->sendTelegramNotification($order, $address, 'KHQR');
+
+                Cart::instance('cart')->destroy();
+                Session::forget('checkout');
+                Session::forget('coupon');
+                Session::forget('discount');
+                Session::forget('khqr_data');
+                Session::forget('khqr_order_id');
+                Session::forget('khqr_md5');
+                Session::put('order_id', $orderId);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Payment confirmed',
+                    'redirect' => route('cart.order.confirmation')
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment not yet confirmed'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('KHQR payment check failed: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error checking payment status: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    private function sendTelegramNotification($order, $address, $paymentMethod = 'COD')
     {
         $orderItem = "";
         foreach ($order->orderItem as $item) {
@@ -232,7 +388,8 @@ class CartController extends Controller
         $customer_info .= "Tax: \${$order->tax}\n";
         $customer_info .= "Total: <b>\${$order->total}</b>\n\n";
 
-        $customer_info .= "💳 <b>Payment Method:</b> Cash on Delivery\n";
+        $paymentMethodText = $paymentMethod === 'KHQR' ? '💳 <b>Payment Method:</b> KHQR (Paid ✅)' : '💳 <b>Payment Method:</b> Cash on Delivery';
+        $customer_info .= $paymentMethodText . "\n";
         $customer_info .= "📅 <b>Order Date:</b> " . $order->created_at->format('d M Y, h:i A');
 
         $token = "7798227033:AAEdag1xP4p3JvDbdOgdPdavhxd6EPFabIg";
@@ -285,6 +442,6 @@ class CartController extends Controller
             $order = Order::find(Session::get('order_id'));
             return view('order-confirmation', compact('order'));
         }
-        return redirect('cart.index');
+        return redirect()->route('cart.index');
     }
 }
