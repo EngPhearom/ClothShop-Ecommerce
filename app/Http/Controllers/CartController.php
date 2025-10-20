@@ -223,7 +223,6 @@ class CartController extends Controller
     public function generateKHQR($order)
     {
         try {
-            // Convert USD to KHR (approximate rate: 1 USD = 4100 KHR)
             $amountInKHR = floatval(str_replace(',', '', $order->total)) * 4100;
 
             $individualInfo = new IndividualInfo(
@@ -234,10 +233,8 @@ class CartController extends Controller
                 amount: $amountInKHR
             );
 
-            // Generate KHQR without API (offline generation)
             $khqrString = BakongKHQR::generateIndividual($individualInfo);
 
-            // Log everything for debugging
             Log::info('KHQR Generation:', [
                 'type' => gettype($khqrString),
                 'length' => is_string($khqrString) ? strlen($khqrString) : 'not string',
@@ -245,12 +242,10 @@ class CartController extends Controller
                 'amount' => $amountInKHR
             ]);
 
-            // KHQR library returns the QR string directly
             $qrCodeData = is_string($khqrString) ? $khqrString : '';
 
             if (empty($qrCodeData)) {
                 Log::error('Empty QR code data generated');
-                // Use a test QR code for debugging
                 $qrCodeData = "00020101021229190015eng_phirom@aclb52045999530311654031005802KH5910Eng Phirom6010PHNOM PENH9917001317602445102106304BF70";
             }
 
@@ -264,7 +259,6 @@ class CartController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
 
-            // Return test data for debugging
             $testQR = "00020101021229190015eng_phirom@aclb52045999530311654031005802KH5910Eng Phirom6010PHNOM PENH9917001317602445102106304BF70";
 
             return [
