@@ -262,7 +262,7 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body text-center">
-                        <div id="qrcode-container" class="mb-3">
+                        <div id="qrcode-container" class="mb-3 d-flex justify-content-center">
                             <canvas id="qrcode"></canvas>
                         </div>
                         <div class="alert alert-info">
@@ -284,49 +284,130 @@
 @push('scripts')
     <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            @if (session('show_khqr_modal') && session('khqr_data'))
-                const khqrData = @json(session('khqr_data'));
-                const md5 = '{{ session('khqr_md5') }}';
-                const canvas = document.getElementById('qrcode');
+        $(document).ready(function() {
+            let paymentCheckInterval;
+            let khqrMd5;
+            let orderId;
 
-                QRCode.toCanvas(canvas, khqrData.qr_string, {
-                    width: 300
-                }, function(error) {
-                    if (error) console.error(error);
-                });
+            // Handle form submission
+            $('#checkout-form').on('submit', function(e) {
+                e.preventDefault();
 
-                const modal = new bootstrap.Modal(document.getElementById('khqrModal'));
-                modal.show();
+                const selectedMode = $('input[name="mode"]:checked').val();
 
-                let checkInterval = setInterval(() => {
-                    fetch('{{ route('cart.check.khqr.payment') }}', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                            },
-                            body: JSON.stringify({
-                                md5
-                            })
-                        })
-                        .then(res => res.json())
-                        .then(data => {
-                            if (data.success) {
-                                clearInterval(checkInterval);
-                                document.getElementById('payment-status').innerHTML = `
-                        <div class="alert alert-success">
-                            <strong>✅ Payment Successful!</strong><br>Redirecting...
-                        </div>`;
-                                setTimeout(() => window.location.href = data.redirect, 2000);
+                if (selectedMode === 'khqr') {
+                    // Submit form via AJAX for KHQR
+                    $.ajax({
+                        url: $(this).attr('action'),
+                        method: 'POST',
+                        data: $(this).serialize(),
+                        success: function(response) {
+                            if (response.success) {
+                                orderId = response.order_id;
+                                // Generate and show KHQR
+                                generateAndShowKHQR(orderId);
                             }
-                        })
-                        .catch(err => console.error('Error checking KHQR:', err));
-                }, 5000);
+                        },
+                        error: function(xhr) {
+                            alert('Error placing order. Please try again.');
+                        }
+                    });
+                } else {
+                    // Submit form normally for other payment methods
+                    this.submit();
+                }
+            });
 
-                document.getElementById('khqrModal').addEventListener('hidden.bs.modal', () => clearInterval(
-                    checkInterval));
-            @endif
+            function generateAndShowKHQR(orderId) {
+                // Call API to generate KHQR
+                $.ajax({
+                    url: '/generate-khqr/' + orderId,
+                    method: 'GET',
+                    success: function(response) {
+                        if (response.status && response.status.code === 0) {
+                            const qrString = response.data.qr;
+                            khqrMd5 = response.data.md5;
+
+                            // Generate QR code
+                            const canvas = document.getElementById('qrcode');
+                            QRCode.toCanvas(canvas, qrString, {
+                                width: 300,
+                                margin: 2
+                            }, function(error) {
+                                if (error) {
+                                    console.error(error);
+                                    alert('Error generating QR code');
+                                    return;
+                                }
+                            });
+
+                            // Show modal
+                            $('#khqrModal').modal('show');
+
+                            // Start checking for payment
+                            startPaymentCheck();
+                        } else {
+                            alert('Error generating KHQR. Please try again.');
+                        }
+                    },
+                    error: function(xhr) {
+                        alert('Error generating KHQR. Please try again.');
+                    }
+                });
+            }
+
+            function startPaymentCheck() {
+                // Check payment status every 3 seconds
+                paymentCheckInterval = setInterval(function() {
+                    checkPaymentStatus();
+                }, 3000);
+            }
+
+            function checkPaymentStatus() {
+                $.ajax({
+                    url: '/check-khqr-payment',
+                    method: 'POST',
+                    data: {
+                        _token: $('meta[name="csrf-token"]').attr('content'),
+                        md5: khqrMd5,
+                        order_id: orderId
+                    },
+                    success: function(response) {
+                        console.log('Payment check response:', response);
+
+                        if (response.success && response.paid) {
+                            // Payment successful
+                            clearInterval(paymentCheckInterval);
+
+                            // Update UI
+                            $('#payment-status').html(`
+                                <div class="alert alert-success">
+                                    <i class="fas fa-check-circle fa-3x mb-3"></i>
+                                    <h5>Payment Successful!</h5>
+                                    <p>Your payment has been confirmed.</p>
+                                    <p>Redirecting to confirmation page...</p>
+                                </div>
+                            `);
+
+                            // Close modal and redirect after 2 seconds
+                            setTimeout(function() {
+                                $('#khqrModal').modal('hide');
+                                window.location.href = '{{ route("cart.order.confirmation") }}';
+                            }, 2000);
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error('Error checking payment status:', xhr);
+                    }
+                });
+            }
+
+            // Clear interval when modal is closed
+            $('#khqrModal').on('hidden.bs.modal', function() {
+                if (paymentCheckInterval) {
+                    clearInterval(paymentCheckInterval);
+                }
+            });
         });
     </script>
 @endpush

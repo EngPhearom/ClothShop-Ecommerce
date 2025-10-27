@@ -186,9 +186,8 @@ class CartController extends Controller
         }
 
         if ($request->mode == 'card') {
+            // Card payment logic here
         } elseif ($request->mode == 'khqr') {
-            $khqrData = $this->generateKHQR($order);
-
             $transaction = new Transaction();
             $transaction->user_id = $user_id;
             $transaction->order_id = $order->id;
@@ -196,11 +195,13 @@ class CartController extends Controller
             $transaction->status = 'pending';
             $transaction->save();
 
-            Session::put('khqr_data', $khqrData);
-            Session::put('khqr_order_id', $order->id);
-            Session::put('khqr_md5', $khqrData['md5']);
+            // Generate KHQR for this order
+            Session::put('pending_order_id', $order->id);
+            return response()->json([
+                'success' => true,
+                'order_id' => $order->id
+            ]);
 
-            return redirect()->route('cart.checkout')->with('show_khqr_modal', true);
         } elseif ($request->mode == 'cod') {
             $transaction = new Transaction();
             $transaction->user_id = $user_id;
@@ -220,189 +221,184 @@ class CartController extends Controller
         }
     }
 
-    public function generateKHQR($order)
+    public function generateKHQR($orderId)
     {
-        try {
-            $amountInKHR = floatval(str_replace(',', '', $order->total)) * 4100;
+        $order = Order::findOrFail($orderId);
+        $total = floatval(str_replace(',', '', $order->total));
 
-            $individualInfo = new IndividualInfo(
-                bakongAccountID: 'eng_phirom@aclb',
-                merchantName: 'Eng Phirom',
-                merchantCity: 'PHNOM PENH',
-                currency: KHQRData::CURRENCY_KHR,
-                amount: $amountInKHR
-            );
+        $individualInfo = new IndividualInfo(
+            bakongAccountID: 'eng_phirom@aclb',
+            merchantName: 'Eng Phirom',
+            merchantCity: 'PHNOM PENH',
+            currency: KHQRData::CURRENCY_USD,
+            amount: $total
+        );
 
-            $khqrString = BakongKHQR::generateIndividual($individualInfo);
-
-            Log::info('KHQR Generation:', [
-                'type' => gettype($khqrString),
-                'length' => is_string($khqrString) ? strlen($khqrString) : 'not string',
-                'value' => $khqrString,
-                'amount' => $amountInKHR
-            ]);
-
-            $qrCodeData = is_string($khqrString) ? $khqrString : '';
-
-            if (empty($qrCodeData)) {
-                Log::error('Empty QR code data generated');
-                $qrCodeData = "00020101021229190015eng_phirom@aclb52045999530311654031005802KH5910Eng Phirom6010PHNOM PENH9917001317602445102106304BF70";
-            }
-
-            return [
-                'qr_string' => $qrCodeData,
-                'md5' => md5($qrCodeData),
-                'amount' => $amountInKHR
-            ];
-        } catch (\Exception $e) {
-            Log::error('KHQR Generation Failed: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            $testQR = "00020101021229190015eng_phirom@aclb52045999530311654031005802KH5910Eng Phirom6010PHNOM PENH9917001317602445102106304BF70";
-
-            return [
-                'qr_string' => $testQR,
-                'md5' => md5($testQR),
-                'amount' => 0
-            ];
-        }
+        $response = BakongKHQR::generateIndividual($individualInfo);
+        return response()->json($response);
     }
 
-
-    public function checkKHQRPaymentStatus(Request $request)
+    public function checkKHQRPayment(Request $request)
     {
-        $md5 = $request->input('md5');
+        $md5 = $request->md5;
+        $orderId = $request->order_id;
 
         try {
-            $token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlkIjoiMjIwMWU1MzM1YzI5NGU4NSJ9LCJpYXQiOjE3NjAxNTU5MzYsImV4cCI6MTc2NzkzMTkzNn0.zrC8oOpgB0T8HR9pwSPdT3_DNer1uI_GRD2hpVPoTPE';
-            $bakongKhqr = new BakongKHQR($token);
+            $bakongKhqr = new BakongKHQR('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlkIjoiMjIwMWU1MzM1YzI5NGU4NSJ9LCJpYXQiOjE3NjE1NTE5OTIsImV4cCI6MTc2OTMyNzk5Mn0.Brg5cGWprDH00kvyINX4LX_eudud_ghwF81Qh_Dcgow');
             $response = $bakongKhqr->checkTransactionByMD5($md5);
 
-            Log::info('KHQR Payment Check Response:', [
-                'type' => gettype($response),
-                'response' => $response
-            ]);
+            Log::info('KHQR Payment Check Response:', ['response' => $response, 'md5' => $md5, 'order_id' => $orderId]);
 
-            $isSuccess = false;
+            // Check if payment is successful
+            // The response structure might vary, so let's check multiple possible formats
+            $isPaid = false;
 
-            if (is_object($response)) {
-                $isSuccess = (
-                    (isset($response->responseCode) && $response->responseCode === 0) ||
-                    (isset($response->response_code) && $response->response_code === 0) ||
-                    (isset($response->status) && $response->status === 'success') ||
-                    (isset($response->data) && !empty($response->data))
-                );
-            } elseif (is_array($response)) {
-                $isSuccess = (
-                    (isset($response['responseCode']) && $response['responseCode'] === 0) ||
-                    (isset($response['response_code']) && $response['response_code'] === 0) ||
-                    (isset($response['status']) && $response['status'] === 'success') ||
-                    (isset($response['data']) && !empty($response['data']))
-                );
+            if (isset($response['data']['status']) && strtoupper($response['data']['status']) === 'PAID') {
+                $isPaid = true;
+            } elseif (isset($response['status']) && strtoupper($response['status']) === 'PAID') {
+                $isPaid = true;
+            } elseif (isset($response['data']['responseCode']) && $response['data']['responseCode'] === '00') {
+                $isPaid = true;
             }
 
-            if ($isSuccess) {
-                $orderId = Session::get('khqr_order_id');
-                $order = Order::find($orderId);
-
-                if (!$order) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Order not found'
-                    ]);
-                }
-
-                $address = Address::where('user_id', $order->user_id)->where('isdefault', true)->first();
-
+            if ($isPaid) {
+                $order = Order::findOrFail($orderId);
                 $transaction = Transaction::where('order_id', $orderId)->first();
-                if ($transaction) {
+
+                if ($transaction && $transaction->status !== 'approved') {
+                    // Update transaction status
                     $transaction->status = 'approved';
                     $transaction->save();
+
+                    Log::info('Transaction updated to approved:', ['transaction_id' => $transaction->id]);
+
+                    // Get address
+                    $address = Address::where('user_id', $order->user_id)->where('isdefault', 1)->first();
+
+                    // Send Telegram notification
+                    Log::info('Sending Telegram notification for KHQR payment');
+                    $this->sendTelegramNotification($order, $address, 'KHQR');
+
+                    // Clear cart and session
+                    Cart::instance('cart')->destroy();
+                    Session::forget('checkout');
+                    Session::forget('coupon');
+                    Session::forget('discount');
+                    Session::forget('pending_order_id');
+                    Session::put('order_id', $order->id);
+
+                    Log::info('Payment process completed successfully');
+
+                    return response()->json([
+                        'success' => true,
+                        'paid' => true,
+                        'message' => 'Payment confirmed successfully'
+                    ]);
+                } else {
+                    Log::info('Transaction already approved or not found');
+                    return response()->json([
+                        'success' => true,
+                        'paid' => true,
+                        'message' => 'Payment already processed'
+                    ]);
                 }
-
-                $this->sendTelegramNotification($order, $address, 'KHQR');
-
-                Cart::instance('cart')->destroy();
-                Session::forget('checkout');
-                Session::forget('coupon');
-                Session::forget('discount');
-                Session::forget('khqr_data');
-                Session::forget('khqr_order_id');
-                Session::forget('khqr_md5');
-                Session::put('order_id', $orderId);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Payment confirmed',
-                    'redirect' => route('cart.order.confirmation')
-                ]);
             }
 
             return response()->json([
-                'success' => false,
-                'message' => 'Payment not yet confirmed'
+                'success' => true,
+                'paid' => false,
+                'message' => 'Payment pending'
             ]);
+
         } catch (\Exception $e) {
             Log::error('KHQR payment check failed: ' . $e->getMessage(), [
+                'exception' => $e,
                 'trace' => $e->getTraceAsString()
             ]);
             return response()->json([
                 'success' => false,
-                'message' => 'Error checking payment status: ' . $e->getMessage()
-            ]);
+                'message' => 'Failed to check payment status: ' . $e->getMessage()
+            ], 500);
         }
     }
 
     private function sendTelegramNotification($order, $address, $paymentMethod = 'COD')
     {
-        $orderItem = "";
-        foreach ($order->orderItem as $item) {
-            $orderItem .= "• {$item->product->name} x {$item->quantity} - \${$item->price}\n";
-        }
-
-        $customer_info = "📦 <b>Order #" . $order->id . "</b>\n\n";
-        $customer_info .= "👤 <b>Customer Details:</b>\n";
-        $customer_info .= "Name: <b>{$address->name}</b>\n";
-        $customer_info .= "Phone: <b>{$address->phone}</b>\n";
-        $customer_info .= "Email: <b>" . Auth::user()->email . "</b>\n\n";
-
-        $customer_info .= "📍 <b>Shipping Address:</b>\n";
-        $customer_info .= "<b>{$address->address}</b>\n";
-        $customer_info .= "{$address->locality}, {$address->landmark}\n";
-        $customer_info .= "{$address->city}, {$address->state}\n";
-        $customer_info .= "{$address->country} - {$address->zip}\n\n";
-
-        $customer_info .= "🛍️ <b>Order Items:</b>\n";
-        $customer_info .= $orderItem . "\n";
-
-        $customer_info .= "💰 <b>Order Summary:</b>\n";
-        $customer_info .= "Subtotal: \${$order->subtotal}\n";
-        $customer_info .= "Discount: \${$order->discount}\n";
-        $customer_info .= "Tax: \${$order->tax}\n";
-        $customer_info .= "Total: <b>\${$order->total}</b>\n\n";
-
-        $paymentMethodText = $paymentMethod === 'KHQR' ? '💳 <b>Payment Method:</b> KHQR (Paid ✅)' : '💳 <b>Payment Method:</b> Cash on Delivery';
-        $customer_info .= $paymentMethodText . "\n";
-        $customer_info .= "📅 <b>Order Date:</b> " . $order->created_at->format('d M Y, h:i A');
-
-        $token = "7798227033:AAEdag1xP4p3JvDbdOgdPdavhxd6EPFabIg";
+        Log::info('Starting Telegram notification', ['order_id' => $order->id, 'payment_method' => $paymentMethod]);
 
         try {
-            $response = Http::withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json',
-            ])->post("https://api.telegram.org/bot{$token}/sendMessage", [
+            $orderItem = "";
+            foreach ($order->orderItem as $item) {
+                $orderItem .= "• {$item->product->name} x {$item->quantity} - \${$item->price}\n";
+            }
+
+            $customer_info = "📦 <b>Order #" . $order->id . "</b>\n\n";
+            $customer_info .= "👤 <b>Customer Details:</b>\n";
+            $customer_info .= "Name: <b>{$address->name}</b>\n";
+            $customer_info .= "Phone: <b>{$address->phone}</b>\n";
+            $customer_info .= "Email: <b>" . Auth::user()->email . "</b>\n\n";
+
+            $customer_info .= "📍 <b>Shipping Address:</b>\n";
+            $customer_info .= "<b>{$address->address}</b>\n";
+            $customer_info .= "{$address->locality}, {$address->landmark}\n";
+            $customer_info .= "{$address->city}, {$address->state}\n";
+            $customer_info .= "{$address->country} - {$address->zip}\n\n";
+
+            $customer_info .= "🛍️ <b>Order Items:</b>\n";
+            $customer_info .= $orderItem . "\n";
+
+            $customer_info .= "💰 <b>Order Summary:</b>\n";
+            $customer_info .= "Subtotal: \${$order->subtotal}\n";
+            $customer_info .= "Discount: \${$order->discount}\n";
+            $customer_info .= "Tax: \${$order->tax}\n";
+            $customer_info .= "Total: <b>\${$order->total}</b>\n\n";
+
+            $paymentMethodText = $paymentMethod === 'KHQR' ? '💳 <b>Payment Method:</b> KHQR (Paid ✅)' : '💳 <b>Payment Method:</b> Cash on Delivery';
+            $customer_info .= $paymentMethodText . "\n";
+            $customer_info .= "📅 <b>Order Date:</b> " . $order->created_at->format('d M Y, h:i A');
+
+            $token = "7798227033:AAEdag1xP4p3JvDbdOgdPdavhxd6EPFabIg";
+            $chatId = "@rom_notification";
+
+            $telegramData = [
                 "text" => "🔔 <b>New Order</b>\n\n" . $customer_info,
                 "parse_mode" => "HTML",
                 "disable_web_page_preview" => false,
                 "disable_notification" => false,
-                "chat_id" => "@rom_notification"
-            ]);
+                "chat_id" => $chatId
+            ];
 
-            Log::info('Telegram notification sent', ['response' => $response->json()]);
+            Log::info('Sending to Telegram', ['chat_id' => $chatId, 'order_id' => $order->id]);
+
+            $response = Http::withHeaders([
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+            ])->post("https://api.telegram.org/bot{$token}/sendMessage", $telegramData);
+
+            $responseData = $response->json();
+
+            if ($response->successful() && isset($responseData['ok']) && $responseData['ok'] === true) {
+                Log::info('Telegram notification sent successfully', [
+                    'order_id' => $order->id,
+                    'response' => $responseData
+                ]);
+            } else {
+                Log::error('Telegram notification failed', [
+                    'order_id' => $order->id,
+                    'status' => $response->status(),
+                    'response' => $responseData
+                ]);
+            }
+
+            return $response->successful();
+
         } catch (\Exception $e) {
-            Log::error('Failed to send Telegram notification: ' . $e->getMessage());
+            Log::error('Failed to send Telegram notification: ' . $e->getMessage(), [
+                'order_id' => $order->id,
+                'exception' => $e,
+                'trace' => $e->getTraceAsString()
+            ]);
+            return false;
         }
     }
 
