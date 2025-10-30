@@ -34,6 +34,7 @@ Route::post('/place-an-order', [CartController::class, 'place_an_order'])->name(
 Route::get('/order-confirmation', [CartController::class, 'order_confirmation'])->name('cart.order.confirmation');
 Route::get('/generate-khqr/{orderId}', [CartController::class, 'generateKHQR'])->name('cart.generate.khqr');
 Route::post('/check-khqr-payment', [CartController::class, 'checkKHQRPayment'])->name('cart.check.khqr');
+Route::post('/approve-test-payment', [CartController::class, 'approveTestPayment'])->name('approve.test.payment');
 
 Route::get('/contact-us', [HomeController::class, 'contact'])->name('home.contact');
 Route::post('/contact-us/store', [HomeController::class, 'contact_store'])->name('home.contact.store');

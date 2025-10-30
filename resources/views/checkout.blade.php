@@ -253,7 +253,7 @@
         </section>
 
         <!-- KHQR Modal -->
-        <div class="modal fade" id="khqrModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
+        {{-- <div class="modal fade" id="khqrModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
             aria-labelledby="khqrModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
@@ -276,6 +276,27 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div> --}}
+
+        <div class="modal-body text-center">
+            <div id="qrcode-container" class="mb-3 d-flex justify-content-center">
+                <canvas id="qrcode"></canvas>
+            </div>
+            <div class="alert alert-info">
+                <strong>Scan this QR code</strong> with your banking app to complete payment
+            </div>
+
+            <!-- TEST BUTTON - REMOVE IN PRODUCTION -->
+            <button type="button" class="btn btn-warning mb-3" id="test-payment-success">
+                🧪 Test Payment Success (Dev Only)
+            </button>
+
+            <div id="payment-status" class="mt-3">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Checking payment...</span>
+                </div>
+                <p class="mt-2">Waiting for payment confirmation...</p>
             </div>
         </div>
     </main>
@@ -302,6 +323,7 @@
                         method: 'POST',
                         data: $(this).serialize(),
                         success: function(response) {
+                            console.log('Order placed:', response);
                             if (response.success) {
                                 orderId = response.order_id;
                                 // Generate and show KHQR
@@ -309,7 +331,8 @@
                             }
                         },
                         error: function(xhr) {
-                            alert('Error placing order. Please try again.');
+                            console.error('Order placement error:', xhr);
+                            showAlert('Error placing order. Please try again.', 'danger');
                         }
                     });
                 } else {
@@ -319,14 +342,18 @@
             });
 
             function generateAndShowKHQR(orderId) {
+                console.log('Generating KHQR for order:', orderId);
                 // Call API to generate KHQR
                 $.ajax({
                     url: '/generate-khqr/' + orderId,
                     method: 'GET',
                     success: function(response) {
+                        console.log('KHQR Response:', response);
                         if (response.status && response.status.code === 0) {
                             const qrString = response.data.qr;
                             khqrMd5 = response.data.md5;
+
+                            console.log('KHQR MD5:', khqrMd5);
 
                             // Generate QR code
                             const canvas = document.getElementById('qrcode');
@@ -336,9 +363,10 @@
                             }, function(error) {
                                 if (error) {
                                     console.error(error);
-                                    alert('Error generating QR code');
+                                    showAlert('Error generating QR code', 'danger');
                                     return;
                                 }
+                                console.log('QR Code generated successfully');
                             });
 
                             // Show modal
@@ -347,16 +375,19 @@
                             // Start checking for payment
                             startPaymentCheck();
                         } else {
-                            alert('Error generating KHQR. Please try again.');
+                            console.error('Invalid KHQR response:', response);
+                            showAlert('Error generating KHQR. Please try again.', 'danger');
                         }
                     },
                     error: function(xhr) {
-                        alert('Error generating KHQR. Please try again.');
+                        console.error('KHQR generation error:', xhr);
+                        showAlert('Error generating KHQR. Please try again.', 'danger');
                     }
                 });
             }
 
             function startPaymentCheck() {
+                console.log('Starting payment check with MD5:', khqrMd5, 'Order ID:', orderId);
                 // Check payment status every 3 seconds
                 paymentCheckInterval = setInterval(function() {
                     checkPaymentStatus();
@@ -364,6 +395,7 @@
             }
 
             function checkPaymentStatus() {
+                console.log('Checking payment status...');
                 $.ajax({
                     url: '/check-khqr-payment',
                     method: 'POST',
@@ -374,39 +406,124 @@
                     },
                     success: function(response) {
                         console.log('Payment check response:', response);
+                        console.log('Response success:', response.success);
+                        console.log('Response paid:', response.paid);
 
-                        if (response.success && response.paid) {
+                        // Check if payment is successful
+                        if (response.success === true && response.paid === true) {
+                            console.log('Payment confirmed! Closing modal...');
+
                             // Payment successful
                             clearInterval(paymentCheckInterval);
 
-                            // Update UI
-                            $('#payment-status').html(`
-                                <div class="alert alert-success">
-                                    <i class="fas fa-check-circle fa-3x mb-3"></i>
-                                    <h5>Payment Successful!</h5>
-                                    <p>Your payment has been confirmed.</p>
-                                    <p>Redirecting to confirmation page...</p>
-                                </div>
-                            `);
+                            // Update UI in modal
+                            $('#payment-status').html(
+                                '<div class="alert alert-success">' +
+                                '<i class="fas fa-check-circle fa-3x mb-3"></i>' +
+                                '<h5>Payment Successful!</h5>' +
+                                '<p>Your payment has been confirmed.</p>' +
+                                '<p>Redirecting to confirmation page...</p>' +
+                                '</div>'
+                            );
+
+                            // Show success notification
+                            showAlert('Payment confirmed successfully! Your order has been placed.',
+                                'success');
 
                             // Close modal and redirect after 2 seconds
                             setTimeout(function() {
+                                console.log('Hiding modal and redirecting...');
                                 $('#khqrModal').modal('hide');
-                                window.location.href = '{{ route("cart.order.confirmation") }}';
+                                // Redirect to order confirmation
+                                window.location.href = '/cart/order-confirmation';
                             }, 2000);
+                        } else {
+                            console.log('Payment still pending...');
                         }
                     },
                     error: function(xhr) {
                         console.error('Error checking payment status:', xhr);
+                        console.error('Response text:', xhr.responseText);
                     }
                 });
             }
 
-            // Clear interval when modal is closed
+            // Function to show alert notification
+            function showAlert(message, type) {
+                console.log('Showing alert:', type, message);
+                // Remove any existing alerts
+                $('.custom-alert').remove();
+
+                // Create alert element
+                const alertHtml =
+                    '<div class="custom-alert alert alert-' + type + ' alert-dismissible fade show" role="alert" ' +
+                    'style="position: fixed; top: 20px; right: 20px; z-index: 9999; min-width: 300px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">' +
+                    '<strong>' + (type === 'success' ? 'Success!' : 'Error!') + '</strong> ' + message +
+                    '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' +
+                    '</div>';
+
+                // Append to body
+                $('body').append(alertHtml);
+
+                // Auto dismiss after 5 seconds
+                setTimeout(function() {
+                    $('.custom-alert').fadeOut('slow', function() {
+                        $(this).remove();
+                    });
+                }, 5000);
+            }
+
+            // Clear interval when modal is closed manually
             $('#khqrModal').on('hidden.bs.modal', function() {
+                console.log('Modal closed, clearing interval');
                 if (paymentCheckInterval) {
                     clearInterval(paymentCheckInterval);
                 }
+            });
+
+            $(document).on('click', '#test-payment-success', function() {
+                console.log('TEST: Simulating successful payment');
+
+                // Stop the payment check interval
+                if (paymentCheckInterval) {
+                    clearInterval(paymentCheckInterval);
+                }
+
+                // Update UI to show success
+                $('#payment-status').html(
+                    '<div class="alert alert-success">' +
+                    '<i class="fas fa-check-circle fa-3x mb-3"></i>' +
+                    '<h5>Payment Successful! (TEST MODE)</h5>' +
+                    '<p>Your payment has been confirmed.</p>' +
+                    '<p>Redirecting to confirmation page...</p>' +
+                    '</div>'
+                );
+
+                // Show success notification
+                showAlert('Payment confirmed successfully! Your order has been placed.', 'success');
+
+                // Manually approve the transaction
+                $.ajax({
+                    url: '/approve-test-payment',
+                    method: 'POST',
+                    data: {
+                        _token: $('meta[name="csrf-token"]').attr('content'),
+                        order_id: orderId
+                    },
+                    success: function(response) {
+                        console.log('Test payment approved:', response);
+
+                        // Close modal and redirect after 2 seconds
+                        setTimeout(function() {
+                            console.log('Hiding modal and redirecting...');
+                            $('#khqrModal').modal('hide');
+                            window.location.href = '/cart/order-confirmation';
+                        }, 2000);
+                    },
+                    error: function(xhr) {
+                        console.error('Failed to approve test payment:', xhr);
+                    }
+                });
             });
         });
     </script>

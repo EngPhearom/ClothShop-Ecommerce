@@ -201,7 +201,6 @@ class CartController extends Controller
                 'success' => true,
                 'order_id' => $order->id
             ]);
-
         } elseif ($request->mode == 'cod') {
             $transaction = new Transaction();
             $transaction->user_id = $user_id;
@@ -243,43 +242,56 @@ class CartController extends Controller
         $md5 = $request->md5;
         $orderId = $request->order_id;
 
+        Log::info('KHQR Payment Check Started', ['md5' => $md5, 'order_id' => $orderId]);
+
         try {
-            $bakongKhqr = new BakongKHQR('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlkIjoiMjIwMWU1MzM1YzI5NGU4NSJ9LCJpYXQiOjE3NjE1NTE5OTIsImV4cCI6MTc2OTMyNzk5Mn0.Brg5cGWprDH00kvyINX4LX_eudud_ghwF81Qh_Dcgow');
+            $apiToken = env('BAKONG_API_TOKEN');
+            $bakongKhqr = new BakongKHQR($apiToken);
             $response = $bakongKhqr->checkTransactionByMD5($md5);
 
-            Log::info('KHQR Payment Check Response:', ['response' => $response, 'md5' => $md5, 'order_id' => $orderId]);
+            // Log the ENTIRE response to see what Bakong is returning
+            Log::info('FULL BAKONG API RESPONSE:', [
+                'response' => json_encode($response, JSON_PRETTY_PRINT),
+                'md5' => $md5
+            ]);
 
-            // Check if payment is successful
-            // The response structure might vary, so let's check multiple possible formats
             $isPaid = false;
 
-            if (isset($response['data']['status']) && strtoupper($response['data']['status']) === 'PAID') {
-                $isPaid = true;
-            } elseif (isset($response['status']) && strtoupper($response['status']) === 'PAID') {
-                $isPaid = true;
-            } elseif (isset($response['data']['responseCode']) && $response['data']['responseCode'] === '00') {
-                $isPaid = true;
+            // Check multiple possible response structures
+            if (isset($response['data']['status'])) {
+                Log::info('Found status in data:', ['status' => $response['data']['status']]);
+                if (strtoupper($response['data']['status']) === 'PAID') {
+                    $isPaid = true;
+                }
             }
+
+            if (isset($response['status'])) {
+                Log::info('Found status at root:', ['status' => $response['status']]);
+                if (strtoupper($response['status']) === 'PAID') {
+                    $isPaid = true;
+                }
+            }
+
+            if (isset($response['data']['responseCode'])) {
+                Log::info('Found responseCode:', ['code' => $response['data']['responseCode']]);
+                if ($response['data']['responseCode'] === '00') {
+                    $isPaid = true;
+                }
+            }
+
+            Log::info('Payment status determined:', ['isPaid' => $isPaid]);
 
             if ($isPaid) {
                 $order = Order::findOrFail($orderId);
                 $transaction = Transaction::where('order_id', $orderId)->first();
 
                 if ($transaction && $transaction->status !== 'approved') {
-                    // Update transaction status
                     $transaction->status = 'approved';
                     $transaction->save();
 
-                    Log::info('Transaction updated to approved:', ['transaction_id' => $transaction->id]);
-
-                    // Get address
                     $address = Address::where('user_id', $order->user_id)->where('isdefault', 1)->first();
-
-                    // Send Telegram notification
-                    Log::info('Sending Telegram notification for KHQR payment');
                     $this->sendTelegramNotification($order, $address, 'KHQR');
 
-                    // Clear cart and session
                     Cart::instance('cart')->destroy();
                     Session::forget('checkout');
                     Session::forget('coupon');
@@ -287,21 +299,18 @@ class CartController extends Controller
                     Session::forget('pending_order_id');
                     Session::put('order_id', $order->id);
 
-                    Log::info('Payment process completed successfully');
-
                     return response()->json([
                         'success' => true,
                         'paid' => true,
                         'message' => 'Payment confirmed successfully'
                     ]);
-                } else {
-                    Log::info('Transaction already approved or not found');
-                    return response()->json([
-                        'success' => true,
-                        'paid' => true,
-                        'message' => 'Payment already processed'
-                    ]);
                 }
+
+                return response()->json([
+                    'success' => true,
+                    'paid' => true,
+                    'message' => 'Payment already processed'
+                ]);
             }
 
             return response()->json([
@@ -309,15 +318,62 @@ class CartController extends Controller
                 'paid' => false,
                 'message' => 'Payment pending'
             ]);
-
         } catch (\Exception $e) {
-            Log::error('KHQR payment check failed: ' . $e->getMessage(), [
-                'exception' => $e,
-                'trace' => $e->getTraceAsString()
-            ]);
+            Log::error('KHQR payment check failed: ' . $e->getMessage());
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to check payment status: ' . $e->getMessage()
+                'paid' => false,
+                'message' => 'Failed to check payment: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function approveTestPayment(Request $request)
+    {
+        $orderId = $request->order_id;
+
+        Log::info('TEST: Approving payment for order:', ['order_id' => $orderId]);
+
+        try {
+            $order = Order::findOrFail($orderId);
+            $transaction = Transaction::where('order_id', $orderId)->first();
+
+            if ($transaction) {
+                $transaction->status = 'approved';
+                $transaction->save();
+
+                Log::info('TEST: Transaction approved', ['transaction_id' => $transaction->id]);
+
+                // Get address
+                $address = Address::where('user_id', $order->user_id)->where('isdefault', 1)->first();
+
+                // Send Telegram notification
+                $this->sendTelegramNotification($order, $address, 'KHQR');
+
+                // Clear cart and session
+                Cart::instance('cart')->destroy();
+                Session::forget('checkout');
+                Session::forget('coupon');
+                Session::forget('discount');
+                Session::forget('pending_order_id');
+                Session::put('order_id', $order->id);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Test payment approved'
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Transaction not found'
+            ], 404);
+        } catch (\Exception $e) {
+            Log::error('TEST: Failed to approve payment: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
             ], 500);
         }
     }
@@ -391,7 +447,6 @@ class CartController extends Controller
             }
 
             return $response->successful();
-
         } catch (\Exception $e) {
             Log::error('Failed to send Telegram notification: ' . $e->getMessage(), [
                 'order_id' => $order->id,
