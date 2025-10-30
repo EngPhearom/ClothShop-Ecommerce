@@ -279,24 +279,36 @@
             </div>
         </div> --}}
 
-        <div class="modal-body text-center">
-            <div id="qrcode-container" class="mb-3 d-flex justify-content-center">
-                <canvas id="qrcode"></canvas>
-            </div>
-            <div class="alert alert-info">
-                <strong>Scan this QR code</strong> with your banking app to complete payment
-            </div>
+        <!-- Replace your KHQR Modal with this updated version -->
+        <div class="modal fade" id="khqrModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"
+            aria-labelledby="khqrModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="khqrModalLabel">Scan KHQR to Pay</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <div id="qrcode-container" class="mb-3 d-flex justify-content-center">
+                            <canvas id="qrcode"></canvas>
+                        </div>
+                        <div class="alert alert-info">
+                            <strong>Scan this QR code</strong> with your banking app to complete payment
+                        </div>
 
-            <!-- TEST BUTTON - REMOVE IN PRODUCTION -->
-            <button type="button" class="btn btn-warning mb-3" id="test-payment-success">
-                🧪 Test Payment Success (Dev Only)
-            </button>
+                        <!-- TEST BUTTON - REMOVE IN PRODUCTION -->
+                        <button type="button" class="btn btn-warning mb-3" id="test-payment-success">
+                            🧪 Test Payment Success (Dev Only)
+                        </button>
 
-            <div id="payment-status" class="mt-3">
-                <div class="spinner-border text-primary" role="status">
-                    <span class="visually-hidden">Checking payment...</span>
+                        <div id="payment-status" class="mt-3">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Checking payment...</span>
+                            </div>
+                            <p class="mt-2">Waiting for payment confirmation...</p>
+                        </div>
+                    </div>
                 </div>
-                <p class="mt-2">Waiting for payment confirmation...</p>
             </div>
         </div>
     </main>
@@ -412,31 +424,7 @@
                         // Check if payment is successful
                         if (response.success === true && response.paid === true) {
                             console.log('Payment confirmed! Closing modal...');
-
-                            // Payment successful
-                            clearInterval(paymentCheckInterval);
-
-                            // Update UI in modal
-                            $('#payment-status').html(
-                                '<div class="alert alert-success">' +
-                                '<i class="fas fa-check-circle fa-3x mb-3"></i>' +
-                                '<h5>Payment Successful!</h5>' +
-                                '<p>Your payment has been confirmed.</p>' +
-                                '<p>Redirecting to confirmation page...</p>' +
-                                '</div>'
-                            );
-
-                            // Show success notification
-                            showAlert('Payment confirmed successfully! Your order has been placed.',
-                                'success');
-
-                            // Close modal and redirect after 2 seconds
-                            setTimeout(function() {
-                                console.log('Hiding modal and redirecting...');
-                                $('#khqrModal').modal('hide');
-                                // Redirect to order confirmation
-                                window.location.href = '/cart/order-confirmation';
-                            }, 2000);
+                            handlePaymentSuccess();
                         } else {
                             console.log('Payment still pending...');
                         }
@@ -446,6 +434,70 @@
                         console.error('Response text:', xhr.responseText);
                     }
                 });
+            }
+
+            // Test button click handler
+            $(document).on('click', '#test-payment-success', function() {
+                console.log('TEST: Simulating successful payment');
+
+                // Stop the payment check interval
+                if (paymentCheckInterval) {
+                    clearInterval(paymentCheckInterval);
+                }
+
+                // Show processing state
+                $('#payment-status').html(
+                    '<div class="spinner-border text-warning" role="status">' +
+                    '<span class="visually-hidden">Processing...</span>' +
+                    '</div>' +
+                    '<p class="mt-2">Processing test payment...</p>'
+                );
+
+                // Manually approve the transaction
+                $.ajax({
+                    url: '/approve-test-payment',
+                    method: 'POST',
+                    data: {
+                        _token: $('meta[name="csrf-token"]').attr('content'),
+                        order_id: orderId
+                    },
+                    success: function(response) {
+                        console.log('Test payment approved:', response);
+                        if (response.success) {
+                            handlePaymentSuccess();
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error('Failed to approve test payment:', xhr);
+                        showAlert('Failed to process test payment', 'danger');
+                    }
+                });
+            });
+
+            function handlePaymentSuccess() {
+                // Payment successful
+                clearInterval(paymentCheckInterval);
+
+                // Update UI in modal
+                $('#payment-status').html(
+                    '<div class="alert alert-success">' +
+                    '<i class="fas fa-check-circle fa-3x mb-3"></i>' +
+                    '<h5>Payment Successful!</h5>' +
+                    '<p>Your payment has been confirmed.</p>' +
+                    '<p>Redirecting to confirmation page...</p>' +
+                    '</div>'
+                );
+
+                // Show success notification
+                showAlert('Payment confirmed successfully! Your order has been placed.', 'success');
+
+                // Close modal and redirect after 2 seconds
+                setTimeout(function() {
+                    console.log('Hiding modal and redirecting...');
+                    $('#khqrModal').modal('hide');
+                    // Redirect to order confirmation
+                    window.location.href = '/order-confirmation';
+                }, 2000);
             }
 
             // Function to show alert notification
@@ -479,51 +531,6 @@
                 if (paymentCheckInterval) {
                     clearInterval(paymentCheckInterval);
                 }
-            });
-
-            $(document).on('click', '#test-payment-success', function() {
-                console.log('TEST: Simulating successful payment');
-
-                // Stop the payment check interval
-                if (paymentCheckInterval) {
-                    clearInterval(paymentCheckInterval);
-                }
-
-                // Update UI to show success
-                $('#payment-status').html(
-                    '<div class="alert alert-success">' +
-                    '<i class="fas fa-check-circle fa-3x mb-3"></i>' +
-                    '<h5>Payment Successful! (TEST MODE)</h5>' +
-                    '<p>Your payment has been confirmed.</p>' +
-                    '<p>Redirecting to confirmation page...</p>' +
-                    '</div>'
-                );
-
-                // Show success notification
-                showAlert('Payment confirmed successfully! Your order has been placed.', 'success');
-
-                // Manually approve the transaction
-                $.ajax({
-                    url: '/approve-test-payment',
-                    method: 'POST',
-                    data: {
-                        _token: $('meta[name="csrf-token"]').attr('content'),
-                        order_id: orderId
-                    },
-                    success: function(response) {
-                        console.log('Test payment approved:', response);
-
-                        // Close modal and redirect after 2 seconds
-                        setTimeout(function() {
-                            console.log('Hiding modal and redirecting...');
-                            $('#khqrModal').modal('hide');
-                            window.location.href = '/cart/order-confirmation';
-                        }, 2000);
-                    },
-                    error: function(xhr) {
-                        console.error('Failed to approve test payment:', xhr);
-                    }
-                });
             });
         });
     </script>
